@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -12,6 +14,25 @@ from .ratelimit import client_ip
 
 bearer = HTTPBearer(auto_error=False)
 ALGORITHM = "HS256"
+# ---------------- password hashing ----------------------------------------
+password_hasher = PasswordHasher(
+    time_cost=2,
+    memory_cost=19456,
+    parallelism=1,
+)
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using Argon2 before storing it in the database."""
+    return password_hasher.hash(password)
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify a password against its stored Argon2 hash."""
+    try:
+        return password_hasher.verify(password_hash, password)
+    except (VerifyMismatchError, VerificationError, InvalidHashError):
+        return False
 
 
 # ---------------- tokens ---------------------------------------------------

@@ -81,7 +81,7 @@ def my_gigs(user: dict = Depends(require_client)):
 
 
 @router.post("", status_code=201,
-             dependencies=[Depends(rate_limit("gig-create", 10, 60)), Depends(require_captcha)])
+             dependencies=[Depends(rate_limit("gig-create", 10, 60))])
 def create_gig(body: GigIn, tasks: BackgroundTasks, user: dict = Depends(require_client)):
     gig = db.fetch_one(
         "insert into gig_requests (client_id, title, description, category, budget_min, budget_max, deadline) "

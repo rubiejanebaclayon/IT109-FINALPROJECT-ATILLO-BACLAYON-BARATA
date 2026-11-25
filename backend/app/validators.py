@@ -23,6 +23,12 @@ CATEGORY_RE = re.compile(r"^[A-Za-z &/\-]{3,40}$")
 PSGC_CODE_RE = re.compile(r"^\d{9,10}$")
 REFERENCE_RE = re.compile(r"^[A-Za-z0-9\-_/ ]{3,60}$")
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+# Authentication validation
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{4,20}$")
+
+PASSWORD_RE = re.compile(
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,64}$"
+)
 
 CATEGORIES = [
     "Graphic Design", "Proofreading & Editing", "Tutoring", "Writing",

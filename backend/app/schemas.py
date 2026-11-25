@@ -4,9 +4,67 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from . import validators as v
+class RegisterIn(BaseModel):
+    username: str = Field(min_length=4, max_length=20)
+    full_name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=64)
+    confirm_password: str
+    role: Literal["client", "freelancer"]
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value):
+        value = value.strip()
+        if not v.USERNAME_RE.fullmatch(value):
+            raise ValueError("Username must contain 4-20 letters, numbers, or underscores")
+        return value
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value):
+        value = v.clean_text(value)
+        if not v.NAME_RE.fullmatch(value):
+            raise ValueError("Invalid full name")
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        return value.strip().lower()
+
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value):
+        if not v.PASSWORD_RE.fullmatch(value):
+            raise ValueError(
+                "Password must contain uppercase, lowercase, number, "
+                "and special character"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def check_passwords(self):
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=4, max_length=20)
+    password: str = Field(min_length=1, max_length=64)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value):
+        value = value.strip()
+        if not v.USERNAME_RE.fullmatch(value):
+            raise ValueError("Invalid username format")
+        return value
 
 
 class ProfileUpdate(BaseModel):

@@ -24,7 +24,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // Overridden by NUXT_PUBLIC_* variables in frontend/.env
-      apiBase: 'http://localhost:8000',
+      apiBase: 'http://localhost:8001',
       recaptchaSiteKey: '',
     },
   },

@@ -71,3 +71,7 @@ for r in (auth.router, profiles.router, gigs.router, bids.router,
 @app.get("/health", tags=["System"])
 def health():
     return {"status": "ok"}
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "docs": "/docs"}

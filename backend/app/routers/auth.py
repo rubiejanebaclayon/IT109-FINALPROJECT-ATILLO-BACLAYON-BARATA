@@ -11,18 +11,149 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
+from psycopg.errors import UniqueViolation
+
+from ..schemas import RegisterIn, LoginIn
 
 from .. import db
 from ..config import get_settings
 from ..ratelimit import client_ip, rate_limit
-from ..security import (create_access_token, create_state_token, decode_token,
-                        get_current_user, verify_captcha_token)
+from ..security import (
+    create_access_token,
+    create_state_token,
+    decode_token,
+    get_current_user,
+    verify_captcha_token,
+    hash_password,
+    verify_password,
+    require_captcha,
+)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO = "https://openidconnect.googleapis.com/v1/userinfo"
+# ---------------- username/password registration -------------------------
+@router.post(
+    "/register",
+    dependencies=[
+        Depends(rate_limit("register", 5, 60)),
+        Depends(require_captcha),
+    ],
+)
+def register(data: RegisterIn):
+    s = get_settings()
+    email = str(data.email).lower()
+    username = data.username.lower()
+
+    # Apply the same email-domain restriction as Google registration.
+    if s.allowed_domains and email.split("@")[-1] not in s.allowed_domains:
+        raise HTTPException(
+            status_code=400,
+            detail="This email domain is not allowed.",
+        )
+
+    password_hash = hash_password(data.password)
+
+    try:
+        with db.transaction() as conn:
+            user = db.fetch_one(
+                """
+                INSERT INTO users
+                    (email, full_name, role, username, password_hash)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, email, full_name, avatar_url, role, is_active
+                """,
+                (
+                    email,
+                    data.full_name,
+                    data.role,
+                    username,
+                    password_hash,
+                ),
+                conn,
+            )
+
+            db.execute(
+                "INSERT INTO profiles (user_id) VALUES (%s)",
+                (user["id"],),
+                conn,
+            )
+
+    except UniqueViolation:
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email or username already exists.",
+        )
+
+    token = create_access_token(str(user["id"]), user["role"])
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user["id"]),
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "avatar_url": user["avatar_url"],
+            "role": user["role"],
+        },
+    }
+
+
+# ---------------- username/password login -------------------------------
+@router.post(
+    "/login",
+    dependencies=[
+        Depends(rate_limit("password-login", 10, 60)),
+        Depends(require_captcha),
+    ],
+)
+def password_login(data: LoginIn):
+    username = data.username.lower()
+
+    user = db.fetch_one(
+        """
+        SELECT id, email, full_name, avatar_url, role,
+               is_active, password_hash
+        FROM users
+        WHERE LOWER(username) = %s
+        """,
+        (username,),
+    )
+
+    if not user or not user["password_hash"]:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password.",
+        )
+
+    if not verify_password(data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password.",
+        )
+
+    if not user["is_active"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account has been disabled. Contact the administrator.",
+        )
+
+    token = create_access_token(str(user["id"]), user["role"])
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user["id"]),
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "avatar_url": user["avatar_url"],
+            "role": user["role"],
+        },
+    }
 
 
 def _redirect_uri() -> str:

@@ -9,7 +9,6 @@ async function create({ body, captcha }: { body: any; captcha: string | null }) 
   busy.value = true
   error.value = ''
   try {
-    await api('/gigs', { method: 'POST', body, captcha })
     await navigateTo('/my/gigs?created=1')
   } catch (e: any) {
     error.value = e.message
@@ -29,7 +28,7 @@ async function create({ body, captcha }: { body: any; captcha: string | null }) 
       </CardHeader>
       <CardContent>
         <p v-if="error" class="mb-3 rounded-md bg-red-50 p-2 text-sm text-red-700">{{ error }}</p>
-        <GigForm ref="form" submit-label="Submit for approval" use-captcha :busy="busy" @submit="create" />
+        <GigForm submit-label="Submit for approval" :busy="busy" @submit="create" />
       </CardContent>
     </Card>
   </div>
